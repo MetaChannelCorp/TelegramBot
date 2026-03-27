@@ -5,3 +5,6 @@
 
 # Secrets
 .env
+
+# Virtual environment
+/venv
