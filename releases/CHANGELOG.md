@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Command that checks the Odoo connection, returns the URL, database and user.
+- ...
 
 ### Changed
 
@@ -30,6 +30,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - ...
 
+## [0.1.2] - 2026/03/27
+
+### Added
+
+- Command that checks the Odoo connection, returns the URL, database and user.
+
 ## [0.0.2] - 2026/03/27
 
 ### Added
@@ -46,6 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Initial files.
 
-[unreleased]: https://github.com/FJrodafo/MetaBot/compare/0.0.2...HEAD
+[unreleased]: https://github.com/FJrodafo/MetaBot/compare/0.1.2...HEAD
+[0.1.2]: https://github.com/FJrodafo/MetaBot/releases/tag/0.1.2
 [0.0.2]: https://github.com/FJrodafo/MetaBot/releases/tag/0.0.2
 [0.0.1]: https://github.com/FJrodafo/MetaBot/releases/tag/0.0.1
