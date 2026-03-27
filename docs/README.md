@@ -8,7 +8,9 @@
 1. [Introduction](#introduction)
 2. [Clone the repository](#clone-the-repository)
 3. [Set up the project](#set-up-the-project)
-4. [Virtual Environment](#virtual-environment)
+4. [Create the virtual environment](#create-the-virtual-environment)
+5. [Install the dependencies](#install-the-dependencies)
+6. [Resources](#resources)
 
 ## Introduction
 
@@ -44,7 +46,32 @@ Copy `.env.example` to `.env` and fill the credentials:
 cp .env.example .env
 ```
 
-## Virtual Environment
+## Create the virtual environment
+
+```shell
+python3 -m venv venv
+source venv/bin/activate
+```
+
+## Install the dependencies
+
+Install the latest stable release of `python-telegram-bot` with the following command:
+
+```shell
+pip install python-telegram-bot --upgrade
+```
+
+We also need `python-dotenv` to be able to import the environment variables from the `.env` file:
+
+```shell
+pip install python-dotenv
+```
+
+Export the dependencies installed in the virtual environment with the following command:
+
+```shell
+pip freeze > requirements.txt
+```
 
 ## Resources
 
