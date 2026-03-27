@@ -21,7 +21,8 @@ This project has been developed on a [Linux](https://github.com/torvalds/linux) 
 ```
 /
 ├── .env
-└── bot.py
+├── bot.py
+└── requirements.txt
 ```
 
 ## Clone the repository
