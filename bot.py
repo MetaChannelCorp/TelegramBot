@@ -26,11 +26,12 @@ ALLOWED_USER_IDS = [
     for uid in os.getenv("TELEGRAM_ALLOWED_USER_IDS", "").split(",")
     if uid.strip()
 ]
-
-ODOO_URL      = os.getenv("ODOO_URL")
-ODOO_DB       = os.getenv("ODOO_DB")
-ODOO_USER     = os.getenv("ODOO_USER")
+ODOO_URL = os.getenv("ODOO_URL")
+ODOO_DB = os.getenv("ODOO_DB")
+ODOO_USER = os.getenv("ODOO_USER")
 ODOO_PASSWORD = os.getenv("ODOO_PASSWORD")
+
+PLANTILLA_CONTACTO = "NOMBRE: \n" "APELLIDO: \n" "TELÉFONO: \n" "EMAIL: \n" "EMPRESA: "
 
 # ─────────────────────────────────────────────
 # LOGGING
@@ -43,7 +44,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
-# ESTADOS de la conversación
+# ESTADOS
 # ─────────────────────────────────────────────
 
 (
@@ -55,20 +56,24 @@ logger = logging.getLogger(__name__)
     EMAIL,
     EMPRESA_VINCULADA,
     CONFIRMAR,
-) = range(8)
+    ESPERANDO_PLANTILLA,
+    CONFIRMANDO_PLANTILLA,
+    CREANDO_EMPRESA_PLANTILLA,
+) = range(11)
 
 # ─────────────────────────────────────────────
 # CLIENTE ODOO
 # ─────────────────────────────────────────────
 
+
 class OdooClient:
     def __init__(self, url, db, user, password):
-        self.url      = url
-        self.db       = db
-        self.user     = user
+        self.url = url
+        self.db = db
+        self.user = user
         self.password = password
-        self.uid      = None
-        self._models  = None
+        self.uid = None
+        self._models = None
 
     def _connect(self):
         common = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/common")
@@ -92,24 +97,34 @@ class OdooClient:
     def buscar_empresa(self, nombre):
         self._ensure_connected()
         ids = self._models.execute_kw(
-            self.db, self.uid, self.password,
-            "res.partner", "search",
+            self.db,
+            self.uid,
+            self.password,
+            "res.partner",
+            "search",
             [[["is_company", "=", True], ["name", "ilike", nombre]]],
             {"limit": 5},
         )
         if not ids:
             return []
         return self._models.execute_kw(
-            self.db, self.uid, self.password,
-            "res.partner", "read",
-            [ids], {"fields": ["id", "name"]},
+            self.db,
+            self.uid,
+            self.password,
+            "res.partner",
+            "read",
+            [ids],
+            {"fields": ["id", "name"]},
         )
 
     def crear_empresa(self, nombre):
         self._ensure_connected()
         partner_id = self._models.execute_kw(
-            self.db, self.uid, self.password,
-            "res.partner", "create",
+            self.db,
+            self.uid,
+            self.password,
+            "res.partner",
+            "create",
             [{"name": nombre, "is_company": True}],
         )
         logger.info(f"Empresa creada: {nombre} (ID={partner_id})")
@@ -121,10 +136,7 @@ class OdooClient:
         apellido = datos.get("apellido", "").strip()
         if apellido:
             nombre_completo = f"{nombre_completo} {apellido}"
-        vals = {
-            "name":       nombre_completo,
-            "is_company": False,
-        }
+        vals = {"name": nombre_completo, "is_company": False}
         if datos.get("telefono"):
             vals["phone"] = datos["telefono"]
         if datos.get("email"):
@@ -132,8 +144,12 @@ class OdooClient:
         if datos.get("empresa_id"):
             vals["parent_id"] = datos["empresa_id"]
         partner_id = self._models.execute_kw(
-            self.db, self.uid, self.password,
-            "res.partner", "create", [vals],
+            self.db,
+            self.uid,
+            self.password,
+            "res.partner",
+            "create",
+            [vals],
         )
         logger.info(f"Contacto creado: {nombre_completo} (ID={partner_id})")
         return partner_id
@@ -141,18 +157,26 @@ class OdooClient:
     def listar_contactos_recientes(self, limite=5):
         self._ensure_connected()
         ids = self._models.execute_kw(
-            self.db, self.uid, self.password,
-            "res.partner", "search",
+            self.db,
+            self.uid,
+            self.password,
+            "res.partner",
+            "search",
             [[["is_company", "=", False]]],
             {"limit": limite, "order": "id desc"},
         )
         if not ids:
             return []
         return self._models.execute_kw(
-            self.db, self.uid, self.password,
-            "res.partner", "read",
-            [ids], {"fields": ["id", "name", "phone", "email", "parent_id"]},
+            self.db,
+            self.uid,
+            self.password,
+            "res.partner",
+            "read",
+            [ids],
+            {"fields": ["id", "name", "phone", "email", "parent_id"]},
         )
+
 
 odoo = OdooClient(ODOO_URL, ODOO_DB, ODOO_USER, ODOO_PASSWORD)
 
@@ -160,20 +184,24 @@ odoo = OdooClient(ODOO_URL, ODOO_DB, ODOO_USER, ODOO_PASSWORD)
 # HELPERS
 # ─────────────────────────────────────────────
 
+
 def check_allowed(user_id):
     if not ALLOWED_USER_IDS:
         return True
     return user_id in ALLOWED_USER_IDS
 
+
 def validar_email(email):
     return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email))
+
 
 def validar_telefono(telefono):
     return bool(re.match(r"^[\d\s\+\-\(\)]{6,20}$", telefono))
 
+
 def resumen_datos(ctx_data):
     tipo = ctx_data.get("tipo", "contacto")
-    lineas = [f"📋 *Resumen:*\n"]
+    lineas = ["📋 *Resumen:*\n"]
     if tipo == "empresa":
         lineas.append(f"🏢 Empresa: {ctx_data.get('nombre_empresa', '—')}")
     else:
@@ -188,9 +216,66 @@ def resumen_datos(ctx_data):
             lineas.append(f"🏢 Empresa: {ctx_data['empresa_nombre']}")
     return "\n".join(lineas)
 
+
+def parsear_plantilla(texto):
+    """
+    Parsea uno o varios bloques de contacto del texto recibido.
+    Acepta bloques separados por líneas en blanco o encabezados CONTACTO N.
+    Devuelve una lista de dicts con los campos encontrados.
+    """
+    # Normalizar separadores — divide por "CONTACTO" o por doble salto de línea
+    bloques = re.split(
+        r"(?:CONTACTO\s*\d+\s*[\n:]?|(?:\n\s*){2,})", texto.strip(), flags=re.IGNORECASE
+    )
+    bloques = [b.strip() for b in bloques if b.strip()]
+
+    contactos = []
+    for bloque in bloques:
+        datos = {}
+        for linea in bloque.splitlines():
+            linea = linea.strip()
+            if not linea or ":" not in linea:
+                continue
+            clave, _, valor = linea.partition(":")
+            clave = clave.strip().upper()
+            valor = valor.strip()
+            if not valor or valor in ("-", "—"):
+                continue
+            if clave in ("NOMBRE", "NAME"):
+                datos["nombre"] = valor
+            elif clave in ("APELLIDO", "APELLIDOS", "SURNAME"):
+                datos["apellido"] = valor
+            elif clave in ("TELÉFONO", "TELEFONO", "PHONE", "TLF"):
+                datos["telefono"] = valor
+            elif clave in ("EMAIL", "CORREO", "MAIL"):
+                datos["email"] = valor
+            elif clave in ("EMPRESA", "COMPANY", "PERTENECE A EMPRESA"):
+                datos["empresa_nombre"] = valor
+        if datos.get("nombre"):
+            contactos.append(datos)
+    return contactos
+
+
+def resumen_plantilla(contactos):
+    """Genera un resumen legible de todos los contactos parseados."""
+    lines = [f"📋 *{len(contactos)} contacto(s) detectado(s):*\n"]
+    for i, c in enumerate(contactos, 1):
+        nombre = f"{c.get('nombre', '—')} {c.get('apellido', '')}".strip()
+        lines.append(f"*{i}. {nombre}*")
+        if c.get("telefono"):
+            lines.append(f"   📞 {c['telefono']}")
+        if c.get("email"):
+            lines.append(f"   ✉️ {c['email']}")
+        if c.get("empresa_nombre"):
+            lines.append(f"   🏢 {c['empresa_nombre']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 # ─────────────────────────────────────────────
 # COMANDOS GENERALES
 # ─────────────────────────────────────────────
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_allowed(update.effective_user.id):
@@ -206,6 +291,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
 
+
 async def estado(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_allowed(update.effective_user.id):
         return
@@ -219,7 +305,8 @@ async def estado(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
         )
     else:
-        await msg.edit_text("❌ No se pudo conectar a Odoo. Verifica que Docker está corriendo.")
+        await msg.edit_text("❌ No se pudo conectar a Odoo.")
+
 
 async def recientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_allowed(update.effective_user.id):
@@ -241,42 +328,284 @@ async def recientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error al consultar Odoo: {e}")
 
+
 # ─────────────────────────────────────────────
 # CONVERSACIÓN — /nuevo
 # ─────────────────────────────────────────────
+
 
 async def nuevo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not check_allowed(update.effective_user.id):
         return ConversationHandler.END
     context.user_data.clear()
-    teclado = [[
-        InlineKeyboardButton("👤 Contacto", callback_data="tipo_contacto"),
-        InlineKeyboardButton("🏢 Empresa",  callback_data="tipo_empresa"),
-    ]]
+    teclado = [
+        [
+            InlineKeyboardButton("👤 Contacto", callback_data="tipo_contacto"),
+            InlineKeyboardButton("🏢 Empresa", callback_data="tipo_empresa"),
+            InlineKeyboardButton("📋 Plantilla", callback_data="tipo_plantilla"),
+        ]
+    ]
     await update.message.reply_text(
         "¿Qué quieres añadir al CRM?",
         reply_markup=InlineKeyboardMarkup(teclado),
     )
     return TIPO_CONTACTO
 
+
 async def elegir_tipo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    tipo = "empresa" if query.data == "tipo_empresa" else "contacto"
+    tipo = query.data.replace("tipo_", "")
     context.user_data["tipo"] = tipo
-    if tipo == "empresa":
+
+    if tipo == "plantilla":
+        await query.edit_message_text(
+            "📋 *Modo plantilla*\n\n"
+            "Copia, rellena y envíame uno o varios contactos con este formato:\n\n"
+            "```\n"
+            "CONTACTO 1\n"
+            "NOMBRE: \n"
+            "APELLIDO: \n"
+            "TELÉFONO: \n"
+            "EMAIL: \n"
+            "EMPRESA: \n\n"
+            "CONTACTO 2\n"
+            "NOMBRE: \n"
+            "APELLIDO: \n"
+            "TELÉFONO: \n"
+            "EMAIL: \n"
+            "EMPRESA: \n"
+            "```\n\n"
+            "Deja en blanco o pon `-` los campos que no tengas.",
+            parse_mode="Markdown",
+        )
+        return ESPERANDO_PLANTILLA
+
+    elif tipo == "empresa":
         await query.edit_message_text("🏢 ¿Cuál es el nombre de la empresa?")
         return NOMBRE_EMPRESA
     else:
-        await query.edit_message_text("👤 ¿Cuál es el *nombre* del contacto?", parse_mode="Markdown")
+        await query.edit_message_text(
+            "👤 ¿Cuál es el *nombre* del contacto?", parse_mode="Markdown"
+        )
         return NOMBRE
 
-async def recibir_nombre_empresa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+# ── Modo plantilla ────────────────────────────
+
+
+async def recibir_plantilla(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    texto = update.message.text
+    contactos = parsear_plantilla(texto)
+
+    if not contactos:
+        await update.message.reply_text(
+            "⚠️ No pude detectar ningún contacto. Asegúrate de usar el formato correcto con NOMBRE: al menos."
+        )
+        return ESPERANDO_PLANTILLA
+
+    context.user_data["plantilla_contactos"] = contactos
+    context.user_data["plantilla_index"] = 0
+    context.user_data["empresas_cache"] = {}
+
+    # Comenzar verificando empresas
+    return await verificar_empresa_plantilla(update, context)
+
+
+async def verificar_empresa_plantilla(
+    update_or_query, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """
+    Recorre los contactos pendientes buscando el primero que tenga empresa sin resolver.
+    Si todos están resueltos, muestra el resumen final.
+    """
+    contactos = context.user_data["plantilla_contactos"]
+    empresas_cache = context.user_data.get("empresas_cache", {})
+
+    # Resolver empresas ya cacheadas
+    for c in contactos:
+        nombre_empresa = c.get("empresa_nombre", "").strip()
+        if nombre_empresa and "empresa_id" not in c:
+            if nombre_empresa in empresas_cache:
+                c["empresa_id"] = empresas_cache[nombre_empresa]
+            else:
+                # Buscar en Odoo
+                try:
+                    resultados = odoo.buscar_empresa(nombre_empresa)
+                    if resultados:
+                        c["empresa_id"] = resultados[0]["id"]
+                        c["empresa_nombre"] = resultados[0]["name"]
+                        empresas_cache[nombre_empresa] = resultados[0]["id"]
+                    else:
+                        # Empresa no encontrada — preguntar
+                        context.user_data["empresa_pendiente"] = nombre_empresa
+                        context.user_data["empresas_cache"] = empresas_cache
+
+                        teclado = [
+                            [
+                                InlineKeyboardButton(
+                                    "➕ Crear empresa",
+                                    callback_data="emp_plantilla_crear",
+                                ),
+                                InlineKeyboardButton(
+                                    "⏩ Sin empresa",
+                                    callback_data="emp_plantilla_saltar",
+                                ),
+                            ]
+                        ]
+                        msg = (
+                            f"🏢 La empresa *{nombre_empresa}* no existe en Odoo.\n"
+                            f"¿Qué hacemos con este contacto?"
+                        )
+                        # Responder según si viene de mensaje o callback
+                        if (
+                            hasattr(update_or_query, "message")
+                            and update_or_query.message
+                        ):
+                            await update_or_query.message.reply_text(
+                                msg,
+                                parse_mode="Markdown",
+                                reply_markup=InlineKeyboardMarkup(teclado),
+                            )
+                        else:
+                            await context.bot.send_message(
+                                chat_id=update_or_query.effective_chat.id,
+                                text=msg,
+                                parse_mode="Markdown",
+                                reply_markup=InlineKeyboardMarkup(teclado),
+                            )
+                        return CREANDO_EMPRESA_PLANTILLA
+                except Exception as e:
+                    logger.error(f"Error buscando empresa {nombre_empresa}: {e}")
+
+    # Todas las empresas resueltas — mostrar resumen final
+    context.user_data["empresas_cache"] = empresas_cache
+    return await mostrar_resumen_plantilla(update_or_query, context)
+
+
+async def callback_empresa_plantilla(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    nombre_empresa = context.user_data.get("empresa_pendiente", "")
+    contactos = context.user_data["plantilla_contactos"]
+    empresas_cache = context.user_data.get("empresas_cache", {})
+
+    if query.data == "emp_plantilla_crear":
+        try:
+            emp_id = odoo.crear_empresa(nombre_empresa)
+            empresas_cache[nombre_empresa] = emp_id
+            await query.edit_message_text(
+                f"✅ Empresa *{nombre_empresa}* creada.", parse_mode="Markdown"
+            )
+        except Exception as e:
+            await query.edit_message_text(f"❌ Error creando empresa: {e}")
+
+    elif query.data == "emp_plantilla_saltar":
+        # Marcar como sin empresa para no volver a preguntar
+        empresas_cache[nombre_empresa] = None
+        await query.edit_message_text(
+            f"⏩ Contacto(s) de *{nombre_empresa}* se guardarán sin empresa.",
+            parse_mode="Markdown",
+        )
+
+    # Aplicar cache a todos los contactos con esa empresa
+    for c in contactos:
+        if (
+            c.get("empresa_nombre", "").strip() == nombre_empresa
+            and "empresa_id" not in c
+        ):
+            emp_id = empresas_cache.get(nombre_empresa)
+            if emp_id:
+                c["empresa_id"] = emp_id
+            else:
+                c["empresa_id"] = None  # sin empresa
+
+    context.user_data["empresas_cache"] = empresas_cache
+    context.user_data["plantilla_contactos"] = contactos
+
+    return await verificar_empresa_plantilla(update, context)
+
+
+async def mostrar_resumen_plantilla(
+    update_or_query, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    contactos = context.user_data["plantilla_contactos"]
+    resumen = resumen_plantilla(contactos)
+    teclado = [
+        [
+            InlineKeyboardButton(
+                "✅ Guardar todos", callback_data="plantilla_confirmar"
+            ),
+            InlineKeyboardButton("❌ Cancelar", callback_data="plantilla_cancelar"),
+        ]
+    ]
+    msg = resumen + "\n¿Confirmas y guardas todos en Odoo?"
+
+    if hasattr(update_or_query, "message") and update_or_query.message:
+        await update_or_query.message.reply_text(
+            msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(teclado)
+        )
+    else:
+        await context.bot.send_message(
+            chat_id=update_or_query.effective_chat.id,
+            text=msg,
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(teclado),
+        )
+    return CONFIRMANDO_PLANTILLA
+
+
+async def confirmar_plantilla(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "plantilla_cancelar":
+        await query.edit_message_text("❌ Operación cancelada.")
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    contactos = context.user_data["plantilla_contactos"]
+    creados = []
+    errores = []
+
+    for c in contactos:
+        try:
+            cid = odoo.crear_contacto(c)
+            nombre = f"{c.get('nombre', '')} {c.get('apellido', '')}".strip()
+            creados.append(f"✅ {nombre} (ID={cid})")
+        except Exception as e:
+            nombre = f"{c.get('nombre', '')} {c.get('apellido', '')}".strip()
+            errores.append(f"❌ {nombre}: {e}")
+
+    lines = [f"*Resultado — {len(creados)}/{len(contactos)} contactos guardados:*\n"]
+    lines.extend(creados)
+    if errores:
+        lines.append("\n*Errores:*")
+        lines.extend(errores)
+
+    await query.edit_message_text("\n".join(lines), parse_mode="Markdown")
+    context.user_data.clear()
+    return ConversationHandler.END
+
+
+# ── Modo guiado ───────────────────────────────
+
+
+async def recibir_nombre_empresa(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
     context.user_data["nombre_empresa"] = update.message.text.strip()
-    teclado = [[
-        InlineKeyboardButton("✅ Confirmar", callback_data="confirmar_si"),
-        InlineKeyboardButton("❌ Cancelar",  callback_data="confirmar_no"),
-    ]]
+    teclado = [
+        [
+            InlineKeyboardButton("✅ Confirmar", callback_data="confirmar_si"),
+            InlineKeyboardButton("❌ Cancelar", callback_data="confirmar_no"),
+        ]
+    ]
     await update.message.reply_text(
         resumen_datos(context.user_data) + "\n\n¿Confirmas?",
         parse_mode="Markdown",
@@ -284,38 +613,57 @@ async def recibir_nombre_empresa(update: Update, context: ContextTypes.DEFAULT_T
     )
     return CONFIRMAR
 
+
 async def recibir_nombre(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["nombre"] = update.message.text.strip()
-    await update.message.reply_text("¿Cuál es el *apellido*? (escribe `-` para omitirlo)", parse_mode="Markdown")
+    await update.message.reply_text(
+        "¿Cuál es el *apellido*? (escribe `-` para omitirlo)", parse_mode="Markdown"
+    )
     return APELLIDO
+
 
 async def recibir_apellido(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     texto = update.message.text.strip()
     context.user_data["apellido"] = "" if texto == "-" else texto
-    await update.message.reply_text("📞 ¿Cuál es el *teléfono*? (escribe `-` para omitirlo)", parse_mode="Markdown")
+    await update.message.reply_text(
+        "📞 ¿Cuál es el *teléfono*? (escribe `-` para omitirlo)", parse_mode="Markdown"
+    )
     return TELEFONO
+
 
 async def recibir_telefono(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     texto = update.message.text.strip()
     if texto != "-":
         if not validar_telefono(texto):
-            await update.message.reply_text("⚠️ Teléfono no válido. Inténtalo de nuevo o escribe `-` para omitirlo.")
+            await update.message.reply_text(
+                "⚠️ Teléfono no válido. Inténtalo de nuevo o escribe `-`."
+            )
             return TELEFONO
         context.user_data["telefono"] = texto
-    await update.message.reply_text("✉️ ¿Cuál es el *email*? (escribe `-` para omitirlo)", parse_mode="Markdown")
+    await update.message.reply_text(
+        "✉️ ¿Cuál es el *email*? (escribe `-` para omitirlo)", parse_mode="Markdown"
+    )
     return EMAIL
+
 
 async def recibir_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     texto = update.message.text.strip()
     if texto != "-":
         if not validar_email(texto):
-            await update.message.reply_text("⚠️ Email no válido. Inténtalo de nuevo o escribe `-` para omitirlo.")
+            await update.message.reply_text(
+                "⚠️ Email no válido. Inténtalo de nuevo o escribe `-`."
+            )
             return EMAIL
         context.user_data["email"] = texto
-    await update.message.reply_text("🏢 ¿A qué empresa pertenece? Escribe el nombre para buscarla o `-` si es independiente.")
+    await update.message.reply_text(
+        "🏢 ¿A qué empresa pertenece? Escribe el nombre para buscarla o `-` si es independiente."
+    )
     return EMPRESA_VINCULADA
 
-async def recibir_empresa_vinculada(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+async def recibir_empresa_vinculada(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
     texto = update.message.text.strip()
     if texto == "-":
         return await mostrar_confirmacion(update, context)
@@ -325,10 +673,14 @@ async def recibir_empresa_vinculada(update: Update, context: ContextTypes.DEFAUL
         await update.message.reply_text(f"❌ Error buscando empresas: {e}")
         return EMPRESA_VINCULADA
     if not empresas:
-        teclado = [[
-            InlineKeyboardButton("➕ Crearla ahora", callback_data=f"empresa_nueva|{texto}"),
-            InlineKeyboardButton("⏩ Sin empresa",   callback_data="empresa_ninguna"),
-        ]]
+        teclado = [
+            [
+                InlineKeyboardButton(
+                    "➕ Crearla ahora", callback_data=f"empresa_nueva|{texto}"
+                ),
+                InlineKeyboardButton("⏩ Sin empresa", callback_data="empresa_ninguna"),
+            ]
+        ]
         await update.message.reply_text(
             f"No encontré ninguna empresa llamada *{texto}*.",
             parse_mode="Markdown",
@@ -336,16 +688,23 @@ async def recibir_empresa_vinculada(update: Update, context: ContextTypes.DEFAUL
         )
         return EMPRESA_VINCULADA
     botones = [
-        [InlineKeyboardButton(f"🏢 {e['name']}", callback_data=f"empresa_id|{e['id']}|{e['name']}")]
+        [
+            InlineKeyboardButton(
+                f"🏢 {e['name']}", callback_data=f"empresa_id|{e['id']}|{e['name']}"
+            )
+        ]
         for e in empresas
     ]
-    botones.append([InlineKeyboardButton("⏩ Sin empresa", callback_data="empresa_ninguna")])
+    botones.append(
+        [InlineKeyboardButton("⏩ Sin empresa", callback_data="empresa_ninguna")]
+    )
     await update.message.reply_text(
         f"Encontré estas empresas para *{texto}*:",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(botones),
     )
     return EMPRESA_VINCULADA
+
 
 async def callback_empresa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -357,20 +716,24 @@ async def callback_empresa(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         nombre_empresa = data.split("|", 1)[1]
         try:
             emp_id = odoo.crear_empresa(nombre_empresa)
-            context.user_data["empresa_id"]     = emp_id
+            context.user_data["empresa_id"] = emp_id
             context.user_data["empresa_nombre"] = nombre_empresa
-            await query.edit_message_text(f"✅ Empresa *{nombre_empresa}* creada.", parse_mode="Markdown")
+            await query.edit_message_text(
+                f"✅ Empresa *{nombre_empresa}* creada.", parse_mode="Markdown"
+            )
         except Exception as e:
             await query.edit_message_text(f"❌ Error creando empresa: {e}")
             return EMPRESA_VINCULADA
     elif data.startswith("empresa_id|"):
         _, emp_id, emp_nombre = data.split("|", 2)
-        context.user_data["empresa_id"]     = int(emp_id)
+        context.user_data["empresa_id"] = int(emp_id)
         context.user_data["empresa_nombre"] = emp_nombre
-    teclado = [[
-        InlineKeyboardButton("✅ Confirmar", callback_data="confirmar_si"),
-        InlineKeyboardButton("❌ Cancelar",  callback_data="confirmar_no"),
-    ]]
+    teclado = [
+        [
+            InlineKeyboardButton("✅ Confirmar", callback_data="confirmar_si"),
+            InlineKeyboardButton("❌ Cancelar", callback_data="confirmar_no"),
+        ]
+    ]
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text=resumen_datos(context.user_data) + "\n\n¿Confirmas?",
@@ -379,17 +742,23 @@ async def callback_empresa(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
     return CONFIRMAR
 
-async def mostrar_confirmacion(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    teclado = [[
-        InlineKeyboardButton("✅ Confirmar", callback_data="confirmar_si"),
-        InlineKeyboardButton("❌ Cancelar",  callback_data="confirmar_no"),
-    ]]
+
+async def mostrar_confirmacion(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    teclado = [
+        [
+            InlineKeyboardButton("✅ Confirmar", callback_data="confirmar_si"),
+            InlineKeyboardButton("❌ Cancelar", callback_data="confirmar_no"),
+        ]
+    ]
     await update.message.reply_text(
         resumen_datos(context.user_data) + "\n\n¿Confirmas?",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(teclado),
     )
     return CONFIRMAR
+
 
 async def confirmar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -415,50 +784,81 @@ async def confirmar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                 parse_mode="Markdown",
             )
     except Exception as e:
-        logger.error(f"Error guardando en Odoo: {e}")
-        await query.edit_message_text(f"❌ Error al guardar en Odoo:\n`{e}`", parse_mode="Markdown")
+        await query.edit_message_text(
+            f"❌ Error al guardar en Odoo:\n`{e}`", parse_mode="Markdown"
+        )
     context.user_data.clear()
     return ConversationHandler.END
+
 
 async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
-    await update.message.reply_text("❌ Operación cancelada. Usa /nuevo para empezar de nuevo.")
+    await update.message.reply_text(
+        "❌ Operación cancelada. Usa /nuevo para empezar de nuevo."
+    )
     return ConversationHandler.END
 
+
 async def mensaje_desconocido(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("No entendí ese mensaje. Usa /nuevo para añadir un contacto, o /start para ver los comandos.")
+    await update.message.reply_text(
+        "No entendí ese mensaje. Usa /nuevo para añadir un contacto, o /start para ver los comandos."
+    )
+
 
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
+
 
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     conv = ConversationHandler(
         entry_points=[CommandHandler("nuevo", nuevo)],
         states={
-            TIPO_CONTACTO:      [CallbackQueryHandler(elegir_tipo, pattern="^tipo_")],
-            NOMBRE_EMPRESA:     [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_nombre_empresa)],
-            NOMBRE:             [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_nombre)],
-            APELLIDO:           [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_apellido)],
-            TELEFONO:           [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_telefono)],
-            EMAIL:              [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_email)],
-            EMPRESA_VINCULADA:  [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_empresa_vinculada),
+            TIPO_CONTACTO: [CallbackQueryHandler(elegir_tipo, pattern="^tipo_")],
+            NOMBRE_EMPRESA: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_nombre_empresa)
+            ],
+            NOMBRE: [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_nombre)],
+            APELLIDO: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_apellido)
+            ],
+            TELEFONO: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_telefono)
+            ],
+            EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_email)],
+            EMPRESA_VINCULADA: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND, recibir_empresa_vinculada
+                ),
                 CallbackQueryHandler(callback_empresa, pattern="^empresa_"),
             ],
-            CONFIRMAR:          [CallbackQueryHandler(confirmar, pattern="^confirmar_")],
+            CONFIRMAR: [CallbackQueryHandler(confirmar, pattern="^confirmar_")],
+            ESPERANDO_PLANTILLA: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_plantilla)
+            ],
+            CONFIRMANDO_PLANTILLA: [
+                CallbackQueryHandler(confirmar_plantilla, pattern="^plantilla_")
+            ],
+            CREANDO_EMPRESA_PLANTILLA: [
+                CallbackQueryHandler(
+                    callback_empresa_plantilla, pattern="^emp_plantilla_"
+                )
+            ],
         },
         fallbacks=[CommandHandler("cancelar", cancelar)],
         allow_reentry=True,
     )
-    app.add_handler(CommandHandler("start",     start))
-    app.add_handler(CommandHandler("estado",    estado))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("estado", estado))
     app.add_handler(CommandHandler("recientes", recientes))
     app.add_handler(conv)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mensaje_desconocido))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, mensaje_desconocido)
+    )
     print("✅ Bot en marcha. Abre Telegram y escribe /start")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
+
 
 if __name__ == "__main__":
     main()
