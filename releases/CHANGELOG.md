@@ -8,14 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Guided mode to add contacts and companies to Odoo CRM field by field via conversation flow.
-- Template mode to add one or multiple contacts at once using a structured text format.
-- Automatic company lookup when adding a contact — if the company does not exist, the user is prompted to create it on the spot.
-- `/nuevo` command with three options: guided contact, guided company, and template mode.
-- `/recientes` command that lists the last 5 contacts added to the CRM.
-- `/estado` command that checks the Odoo connection and returns the URL, database and user.
-- `/cancelar` command to cancel any ongoing operation.
-- `OdooClient` class handling XML-RPC authentication and all CRM operations.
+- ...
 
 ### Changed
 
@@ -36,6 +29,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Security
 
 - ...
+
+## [0.2.0] - 2026/04/10
+
+### Added
+
+- Guided mode to add contacts and companies to Odoo CRM field by field via conversation flow.
+- Template mode to add one or multiple contacts at once using a structured text format.
+- Automatic company lookup when adding a contact — if the company does not exist, the user is prompted to create it on the spot.
+- `/nuevo` command with three options: guided contact, guided company, and template mode.
+- `/recientes` command that lists the last 5 contacts added to the CRM.
+- `/estado` command that checks the Odoo connection and returns the URL, database and user.
+- `/cancelar` command to cancel any ongoing operation.
+- `OdooClient` class handling XML-RPC authentication and all CRM operations.
 
 ## [0.1.3] - 2026/03/27
 
@@ -65,7 +71,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Initial files.
 
-[unreleased]: https://github.com/FJrodafo/MetaBot/compare/0.1.3...HEAD
+[unreleased]: https://github.com/FJrodafo/MetaBot/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/FJrodafo/MetaBot/releases/tag/0.2.0
 [0.1.3]: https://github.com/FJrodafo/MetaBot/releases/tag/0.1.3
 [0.1.2]: https://github.com/FJrodafo/MetaBot/releases/tag/0.1.2
 [0.0.2]: https://github.com/FJrodafo/MetaBot/releases/tag/0.0.2
