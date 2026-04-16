@@ -9,7 +9,7 @@ permissions:
   attestations: write
   artifact-metadata: write
 env:
-  ARTIFACT: meta-bot
+  ARTIFACT: telegram-bot
 jobs:
   release:
     runs-on: ubuntu-slim
@@ -20,9 +20,13 @@ jobs:
       # Build artifacts
       - name: Build artifacts
         run: |
-          zip -r ${{ env.ARTIFACT }}-${{ github.ref_name }}.zip docs/ CONTRIBUTING LICENSE bot.py requirements.txt .env.example
+          git archive --format=zip --prefix=${{ env.ARTIFACT }}-${{ github.ref_name }}/ \
+            -o ${{ env.ARTIFACT }}-${{ github.ref_name }}.zip \
+            HEAD
+          git archive --format=tar.gz --prefix=${{ env.ARTIFACT }}-${{ github.ref_name }}/ \
+            -o ${{ env.ARTIFACT }}-${{ github.ref_name }}.tar.gz \
+            HEAD
           unzip -l ${{ env.ARTIFACT }}-${{ github.ref_name }}.zip
-          tar -czvf ${{ env.ARTIFACT }}-${{ github.ref_name }}.tar.gz docs/ CONTRIBUTING LICENSE bot.py requirements.txt .env.example
           tar -tzvf ${{ env.ARTIFACT }}-${{ github.ref_name }}.tar.gz
       # Create GitHub Release
       - name: Create GitHub Release
