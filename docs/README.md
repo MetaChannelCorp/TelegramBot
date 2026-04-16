@@ -1,25 +1,33 @@
-# MetaBot
+# TelegramBot
 
-[![GitHub Pages](https://img.shields.io/badge/%20-white?style=social&logo=githubpages&logoColor=black&logoSize=auto)](https://fjrodafo.github.io/MetaBot/)
-[![GitHub Stars](https://img.shields.io/github/stars/FJrodafo/MetaBot?style=social&logo=github&logoColor=black&label=Stars&labelColor=white&color=white)](https://github.com/FJrodafo/MetaBot/stargazers)
+[![GitHub Pages](https://img.shields.io/badge/%20-FFFFFF?style=social&logo=githubpages&logoColor=000000&logoSize=auto)](https://metachannelcorp.github.io/TelegramBot/)
+[![GitHub Stars](https://img.shields.io/github/stars/MetaChannelCorp/TelegramBot?style=social&logo=github&logoColor=000000&label=Stars&labelColor=FFFFFF&color=FFFFFF)](https://github.com/MetaChannelCorp/TelegramBot/stargazers)
 
 ## Index
 
 1. [Introduction](#introduction)
-2. [Clone the repository](#clone-the-repository)
-3. [Set up the project](#set-up-the-project)
-4. [Create the virtual environment](#create-the-virtual-environment)
-5. [Install the dependencies](#install-the-dependencies)
-6. [Resources](#resources)
+2. [Project structure](#project-structure)
+3. [Clone the repository](#clone-the-repository)
+4. [Set up the project](#set-up-the-project)
+5. [Create the virtual environment](#create-the-virtual-environment)
+5. [Install dependencies](#install-dependencies)
+6. [Run it!](#run-it)
+7. [Resources](#resources)
 
 ## Introduction
 
-A simple Telegram Bot for Odoo CRM!
+A simple Telegram Bot for Odoo!
 
 This project has been developed on a [Linux](https://github.com/torvalds/linux) system. To learn more about the system, visit the [Dotfiles](https://github.com/FJrodafo/Dotfiles) repository.
 
+## Project structure
+
 ```
 /
+├── docs/
+│   └── *.md
+├── CONTRIBUTING
+├── LICENSE
 ├── .env
 ├── bot.py
 └── requirements.txt
@@ -31,12 +39,14 @@ Open a terminal in the directory where you store your repositories and clone it 
 
 ```shell
 # HTTPS
-git clone https://github.com/FJrodafo/MetaBot.git
+git clone https://github.com/MetaChannelCorp/TelegramBot.git
+cd TelegramBot/
 ```
 
 ```shell
 # SSH
-git clone git@github.com:FJrodafo/MetaBot.git
+git clone git@github.com:MetaChannelCorp/TelegramBot.git
+cd TelegramBot/
 ```
 
 ## Set up the project
@@ -45,6 +55,7 @@ Copy `.env.example` to `.env` and fill the credentials:
 
 ```shell
 cp .env.example .env
+nano .env
 ```
 
 ## Create the virtual environment
@@ -54,7 +65,7 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-## Install the dependencies
+## Install dependencies
 
 Install the latest stable release of `python-telegram-bot` with the following command:
 
@@ -74,6 +85,20 @@ Export the dependencies installed in the virtual environment with the following 
 pip freeze > requirements.txt
 ```
 
+## Run it!
+
+This project is closely linked to another project; before running the Telegram bot, run the Docker service from the [Odoo](https://github.com/MetaChannelCorp/Odoo) repository.
+
+Once the Docker containers from the [Odoo](https://github.com/MetaChannelCorp/Odoo) repository are up and running, you can start the bot with the following command:
+
+```shell
+python3 bot.py
+```
+
 ## Resources
 
 [python-telegram-bot](https://python-telegram-bot.org/)
+·
+[BotFather](https://t.me/BotFather)
+·
+[userinfobot](https://t.me/userinfobot)
