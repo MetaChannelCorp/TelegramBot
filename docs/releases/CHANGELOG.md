@@ -71,9 +71,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Initial files.
 
-[unreleased]: https://github.com/MetaChannelCorporation/TelegramBot/compare/0.2.0...HEAD
-[0.2.0]: https://github.com/MetaChannelCorporation/TelegramBot/releases/tag/0.2.0
-[0.1.3]: https://github.com/MetaChannelCorporation/TelegramBot/releases/tag/0.1.3
-[0.1.2]: https://github.com/MetaChannelCorporation/TelegramBot/releases/tag/0.1.2
-[0.0.2]: https://github.com/MetaChannelCorporation/TelegramBot/releases/tag/0.0.2
-[0.0.1]: https://github.com/MetaChannelCorporation/TelegramBot/releases/tag/0.0.1
+[unreleased]: https://github.com/MetaChannelCorp/TelegramBot/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/MetaChannelCorp/TelegramBot/releases/tag/0.2.0
+[0.1.3]: https://github.com/MetaChannelCorp/TelegramBot/releases/tag/0.1.3
+[0.1.2]: https://github.com/MetaChannelCorp/TelegramBot/releases/tag/0.1.2
+[0.0.2]: https://github.com/MetaChannelCorp/TelegramBot/releases/tag/0.0.2
+[0.0.1]: https://github.com/MetaChannelCorp/TelegramBot/releases/tag/0.0.1
