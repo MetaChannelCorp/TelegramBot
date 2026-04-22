@@ -29,8 +29,8 @@ async def estado(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text(
             f"✅ *Conexión exitosa con Odoo*\n\n"
             f"🌐 URL: {ODOO_URL}\n"
-            f"👤 Usuario: {ODOO_USER}\n",
-            f"🗄️ Base de datos: {ODOO_DB}"
+            f"👤 Usuario: {ODOO_USER}\n"
+            f"🗄️ Base de datos: {ODOO_DB}",
             parse_mode="Markdown",
         )
     else:
