@@ -15,11 +15,9 @@ from telegram.ext import (
 )
 
 load_dotenv()
-
 # ─────────────────────────────────────────────
 # CONFIGURACIÓN
 # ─────────────────────────────────────────────
-
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ALLOWED_USER_IDS = [
     int(uid.strip())
@@ -30,23 +28,17 @@ ODOO_URL = os.getenv("ODOO_URL")
 ODOO_DB = os.getenv("ODOO_DB")
 ODOO_USER = os.getenv("ODOO_USER")
 ODOO_PASSWORD = os.getenv("ODOO_PASSWORD")
-
-PLANTILLA_CONTACTO = "NOMBRE: \n" "APELLIDO: \n" "TELÉFONO: \n" "EMAIL: \n" "EMPRESA: "
-
 # ─────────────────────────────────────────────
 # LOGGING
 # ─────────────────────────────────────────────
-
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
-
 # ─────────────────────────────────────────────
 # ESTADOS
 # ─────────────────────────────────────────────
-
 (
     TIPO_CONTACTO,
     NOMBRE_EMPRESA,
@@ -58,14 +50,13 @@ logger = logging.getLogger(__name__)
     CONFIRMAR,
     ESPERANDO_PLANTILLA,
     CONFIRMANDO_PLANTILLA,
-    CREANDO_EMPRESA_PLANTILLA,
+    SELECCIONANDO_EMPRESA_PLANTILLA,
 ) = range(11)
+
 
 # ─────────────────────────────────────────────
 # CLIENTE ODOO
 # ─────────────────────────────────────────────
-
-
 class OdooClient:
     def __init__(self, url, db, user, password):
         self.url = url
@@ -180,11 +171,10 @@ class OdooClient:
 
 odoo = OdooClient(ODOO_URL, ODOO_DB, ODOO_USER, ODOO_PASSWORD)
 
+
 # ─────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────
-
-
 def check_allowed(user_id):
     if not ALLOWED_USER_IDS:
         return True
@@ -218,17 +208,10 @@ def resumen_datos(ctx_data):
 
 
 def parsear_plantilla(texto):
-    """
-    Parsea uno o varios bloques de contacto del texto recibido.
-    Acepta bloques separados por líneas en blanco o encabezados CONTACTO N.
-    Devuelve una lista de dicts con los campos encontrados.
-    """
-    # Normalizar separadores — divide por "CONTACTO" o por doble salto de línea
     bloques = re.split(
         r"(?:CONTACTO\s*\d+\s*[\n:]?|(?:\n\s*){2,})", texto.strip(), flags=re.IGNORECASE
     )
     bloques = [b.strip() for b in bloques if b.strip()]
-
     contactos = []
     for bloque in bloques:
         datos = {}
@@ -249,16 +232,16 @@ def parsear_plantilla(texto):
                 datos["telefono"] = valor
             elif clave in ("EMAIL", "CORREO", "MAIL"):
                 datos["email"] = valor
-            elif clave in ("EMPRESA", "COMPANY", "PERTENECE A EMPRESA"):
-                datos["empresa_nombre"] = valor
         if datos.get("nombre"):
             contactos.append(datos)
     return contactos
 
 
-def resumen_plantilla(contactos):
-    """Genera un resumen legible de todos los contactos parseados."""
-    lines = [f"📋 *{len(contactos)} contacto(s) detectado(s):*\n"]
+def resumen_plantilla(contactos, empresa_nombre=None):
+    lines = [f"📋 *{len(contactos)} contacto(s) detectado(s):*"]
+    if empresa_nombre:
+        lines.append(f"🏢 Empresa: *{empresa_nombre}*")
+    lines.append("")
     for i, c in enumerate(contactos, 1):
         nombre = f"{c.get('nombre', '—')} {c.get('apellido', '')}".strip()
         lines.append(f"*{i}. {nombre}*")
@@ -266,17 +249,30 @@ def resumen_plantilla(contactos):
             lines.append(f"   📞 {c['telefono']}")
         if c.get("email"):
             lines.append(f"   ✉️ {c['email']}")
-        if c.get("empresa_nombre"):
-            lines.append(f"   🏢 {c['empresa_nombre']}")
         lines.append("")
     return "\n".join(lines)
+
+
+PLANTILLA_MENSAJE = (
+    "```\n"
+    "CONTACTO 1\n"
+    "NOMBRE: \n"
+    "APELLIDO: \n"
+    "TELÉFONO: \n"
+    "EMAIL: \n\n"
+    "CONTACTO 2\n"
+    "NOMBRE: \n"
+    "APELLIDO: \n"
+    "TELÉFONO: \n"
+    "EMAIL: \n"
+    "```\n\n"
+    "Deja en blanco o pon `-` los campos que no tengas."
+)
 
 
 # ─────────────────────────────────────────────
 # COMANDOS GENERALES
 # ─────────────────────────────────────────────
-
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_allowed(update.effective_user.id):
         await update.message.reply_text("🚫 No tienes acceso a este bot.")
@@ -332,8 +328,6 @@ async def recientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─────────────────────────────────────────────
 # CONVERSACIÓN — /nuevo
 # ─────────────────────────────────────────────
-
-
 async def nuevo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not check_allowed(update.effective_user.id):
         return ConversationHandler.END
@@ -357,30 +351,14 @@ async def elegir_tipo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await query.answer()
     tipo = query.data.replace("tipo_", "")
     context.user_data["tipo"] = tipo
-
     if tipo == "plantilla":
         await query.edit_message_text(
             "📋 *Modo plantilla*\n\n"
-            "Copia, rellena y envíame uno o varios contactos con este formato:\n\n"
-            "```\n"
-            "CONTACTO 1\n"
-            "NOMBRE: \n"
-            "APELLIDO: \n"
-            "TELÉFONO: \n"
-            "EMAIL: \n"
-            "EMPRESA: \n\n"
-            "CONTACTO 2\n"
-            "NOMBRE: \n"
-            "APELLIDO: \n"
-            "TELÉFONO: \n"
-            "EMAIL: \n"
-            "EMPRESA: \n"
-            "```\n\n"
-            "Deja en blanco o pon `-` los campos que no tengas.",
+            "¿A qué empresa pertenecen estos contactos?\n"
+            "Escribe el nombre para buscarla:",
             parse_mode="Markdown",
         )
-        return ESPERANDO_PLANTILLA
-
+        return SELECCIONANDO_EMPRESA_PLANTILLA
     elif tipo == "empresa":
         await query.edit_message_text("🏢 ¿Cuál es el nombre de la empresa?")
         return NOMBRE_EMPRESA
@@ -391,149 +369,112 @@ async def elegir_tipo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         return NOMBRE
 
 
-# ── Modo plantilla ────────────────────────────
+# ── Selección de empresa previa (modo plantilla) ──
+async def buscar_empresa_plantilla(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    texto = update.message.text.strip()
+    try:
+        empresas = odoo.buscar_empresa(texto)
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error buscando empresas: {e}")
+        return SELECCIONANDO_EMPRESA_PLANTILLA
+    if not empresas:
+        teclado = [
+            [
+                InlineKeyboardButton(
+                    "➕ Crear empresa", callback_data=f"emp_pre_nueva|{texto}"
+                ),
+                InlineKeyboardButton("🔍 Buscar otra", callback_data="emp_pre_buscar"),
+            ]
+        ]
+        await update.message.reply_text(
+            f"No encontré ninguna empresa llamada *{texto}*. ¿Qué hacemos?",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(teclado),
+        )
+        return SELECCIONANDO_EMPRESA_PLANTILLA
+    botones = [
+        [
+            InlineKeyboardButton(
+                f"🏢 {e['name']}", callback_data=f"emp_pre|{e['id']}|{e['name']}"
+            )
+        ]
+        for e in empresas
+    ]
+    await update.message.reply_text(
+        f"Encontré estas empresas para *{texto}*:",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(botones),
+    )
+    return SELECCIONANDO_EMPRESA_PLANTILLA
 
 
+async def callback_seleccionar_empresa_plantilla(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    if data == "emp_pre_buscar":
+        await query.edit_message_text(
+            "🔍 Escribe el nombre de la empresa para buscarla:"
+        )
+        return SELECCIONANDO_EMPRESA_PLANTILLA
+    elif data.startswith("emp_pre_nueva|"):
+        nombre_empresa = data.split("|", 1)[1]
+        try:
+            emp_id = odoo.crear_empresa(nombre_empresa)
+            context.user_data["empresa_plantilla_id"] = emp_id
+            context.user_data["empresa_plantilla_nombre"] = nombre_empresa
+            await query.edit_message_text(
+                f"✅ Empresa *{nombre_empresa}* creada.\n\n"
+                f"Ahora copia, rellena y envíame los contactos:\n\n"
+                f"{PLANTILLA_MENSAJE}",
+                parse_mode="Markdown",
+            )
+            return ESPERANDO_PLANTILLA
+        except Exception as e:
+            await query.edit_message_text(f"❌ Error creando empresa: {e}")
+            return SELECCIONANDO_EMPRESA_PLANTILLA
+    elif data.startswith("emp_pre|"):
+        _, emp_id, emp_nombre = data.split("|", 2)
+        context.user_data["empresa_plantilla_id"] = int(emp_id)
+        context.user_data["empresa_plantilla_nombre"] = emp_nombre
+        await query.edit_message_text(
+            f"✅ Empresa seleccionada: *{emp_nombre}*\n\n"
+            f"Ahora copia, rellena y envíame los contactos:\n\n"
+            f"{PLANTILLA_MENSAJE}",
+            parse_mode="Markdown",
+        )
+        return ESPERANDO_PLANTILLA
+
+
+# ── Recepción y procesado de plantilla ──
 async def recibir_plantilla(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     texto = update.message.text
     contactos = parsear_plantilla(texto)
-
     if not contactos:
         await update.message.reply_text(
             "⚠️ No pude detectar ningún contacto. Asegúrate de usar el formato correcto con NOMBRE: al menos."
         )
         return ESPERANDO_PLANTILLA
-
-    context.user_data["plantilla_contactos"] = contactos
-    context.user_data["plantilla_index"] = 0
-    context.user_data["empresas_cache"] = {}
-
-    # Comenzar verificando empresas
-    return await verificar_empresa_plantilla(update, context)
-
-
-async def verificar_empresa_plantilla(
-    update_or_query, context: ContextTypes.DEFAULT_TYPE
-) -> int:
-    """
-    Recorre los contactos pendientes buscando el primero que tenga empresa sin resolver.
-    Si todos están resueltos, muestra el resumen final.
-    """
-    contactos = context.user_data["plantilla_contactos"]
-    empresas_cache = context.user_data.get("empresas_cache", {})
-
-    # Resolver empresas ya cacheadas
+    emp_id = context.user_data.get("empresa_plantilla_id")
+    emp_nombre = context.user_data.get("empresa_plantilla_nombre")
     for c in contactos:
-        nombre_empresa = c.get("empresa_nombre", "").strip()
-        if nombre_empresa and "empresa_id" not in c:
-            if nombre_empresa in empresas_cache:
-                c["empresa_id"] = empresas_cache[nombre_empresa]
-            else:
-                # Buscar en Odoo
-                try:
-                    resultados = odoo.buscar_empresa(nombre_empresa)
-                    if resultados:
-                        c["empresa_id"] = resultados[0]["id"]
-                        c["empresa_nombre"] = resultados[0]["name"]
-                        empresas_cache[nombre_empresa] = resultados[0]["id"]
-                    else:
-                        # Empresa no encontrada — preguntar
-                        context.user_data["empresa_pendiente"] = nombre_empresa
-                        context.user_data["empresas_cache"] = empresas_cache
-
-                        teclado = [
-                            [
-                                InlineKeyboardButton(
-                                    "➕ Crear empresa",
-                                    callback_data="emp_plantilla_crear",
-                                ),
-                                InlineKeyboardButton(
-                                    "⏩ Sin empresa",
-                                    callback_data="emp_plantilla_saltar",
-                                ),
-                            ]
-                        ]
-                        msg = (
-                            f"🏢 La empresa *{nombre_empresa}* no existe en Odoo.\n"
-                            f"¿Qué hacemos con este contacto?"
-                        )
-                        # Responder según si viene de mensaje o callback
-                        if (
-                            hasattr(update_or_query, "message")
-                            and update_or_query.message
-                        ):
-                            await update_or_query.message.reply_text(
-                                msg,
-                                parse_mode="Markdown",
-                                reply_markup=InlineKeyboardMarkup(teclado),
-                            )
-                        else:
-                            await context.bot.send_message(
-                                chat_id=update_or_query.effective_chat.id,
-                                text=msg,
-                                parse_mode="Markdown",
-                                reply_markup=InlineKeyboardMarkup(teclado),
-                            )
-                        return CREANDO_EMPRESA_PLANTILLA
-                except Exception as e:
-                    logger.error(f"Error buscando empresa {nombre_empresa}: {e}")
-
-    # Todas las empresas resueltas — mostrar resumen final
-    context.user_data["empresas_cache"] = empresas_cache
-    return await mostrar_resumen_plantilla(update_or_query, context)
-
-
-async def callback_empresa_plantilla(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
-    query = update.callback_query
-    await query.answer()
-
-    nombre_empresa = context.user_data.get("empresa_pendiente", "")
-    contactos = context.user_data["plantilla_contactos"]
-    empresas_cache = context.user_data.get("empresas_cache", {})
-
-    if query.data == "emp_plantilla_crear":
-        try:
-            emp_id = odoo.crear_empresa(nombre_empresa)
-            empresas_cache[nombre_empresa] = emp_id
-            await query.edit_message_text(
-                f"✅ Empresa *{nombre_empresa}* creada.", parse_mode="Markdown"
-            )
-        except Exception as e:
-            await query.edit_message_text(f"❌ Error creando empresa: {e}")
-
-    elif query.data == "emp_plantilla_saltar":
-        # Marcar como sin empresa para no volver a preguntar
-        empresas_cache[nombre_empresa] = None
-        await query.edit_message_text(
-            f"⏩ Contacto(s) de *{nombre_empresa}* se guardarán sin empresa.",
-            parse_mode="Markdown",
-        )
-
-    # Aplicar cache a todos los contactos con esa empresa
-    for c in contactos:
-        if (
-            c.get("empresa_nombre", "").strip() == nombre_empresa
-            and "empresa_id" not in c
-        ):
-            emp_id = empresas_cache.get(nombre_empresa)
-            if emp_id:
-                c["empresa_id"] = emp_id
-            else:
-                c["empresa_id"] = None  # sin empresa
-
-    context.user_data["empresas_cache"] = empresas_cache
+        if emp_id:
+            c["empresa_id"] = emp_id
+            c["empresa_nombre"] = emp_nombre
     context.user_data["plantilla_contactos"] = contactos
-
-    return await verificar_empresa_plantilla(update, context)
+    return await mostrar_resumen_plantilla(update, context)
 
 
 async def mostrar_resumen_plantilla(
     update_or_query, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
     contactos = context.user_data["plantilla_contactos"]
-    resumen = resumen_plantilla(contactos)
+    emp_nombre = context.user_data.get("empresa_plantilla_nombre")
+    resumen = resumen_plantilla(contactos, emp_nombre)
     teclado = [
         [
             InlineKeyboardButton(
@@ -543,7 +484,6 @@ async def mostrar_resumen_plantilla(
         ]
     ]
     msg = resumen + "\n¿Confirmas y guardas todos en Odoo?"
-
     if hasattr(update_or_query, "message") and update_or_query.message:
         await update_or_query.message.reply_text(
             msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(teclado)
@@ -563,16 +503,13 @@ async def confirmar_plantilla(
 ) -> int:
     query = update.callback_query
     await query.answer()
-
     if query.data == "plantilla_cancelar":
         await query.edit_message_text("❌ Operación cancelada.")
         context.user_data.clear()
         return ConversationHandler.END
-
     contactos = context.user_data["plantilla_contactos"]
     creados = []
     errores = []
-
     for c in contactos:
         try:
             cid = odoo.crear_contacto(c)
@@ -581,21 +518,17 @@ async def confirmar_plantilla(
         except Exception as e:
             nombre = f"{c.get('nombre', '')} {c.get('apellido', '')}".strip()
             errores.append(f"❌ {nombre}: {e}")
-
     lines = [f"*Resultado — {len(creados)}/{len(contactos)} contactos guardados:*\n"]
     lines.extend(creados)
     if errores:
         lines.append("\n*Errores:*")
         lines.extend(errores)
-
     await query.edit_message_text("\n".join(lines), parse_mode="Markdown")
     context.user_data.clear()
     return ConversationHandler.END
 
 
-# ── Modo guiado ───────────────────────────────
-
-
+# ── Modo guiado ──
 async def recibir_nombre_empresa(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
@@ -808,8 +741,6 @@ async def mensaje_desconocido(update: Update, context: ContextTypes.DEFAULT_TYPE
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
-
-
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     conv = ConversationHandler(
@@ -834,16 +765,19 @@ def main():
                 CallbackQueryHandler(callback_empresa, pattern="^empresa_"),
             ],
             CONFIRMAR: [CallbackQueryHandler(confirmar, pattern="^confirmar_")],
+            SELECCIONANDO_EMPRESA_PLANTILLA: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND, buscar_empresa_plantilla
+                ),
+                CallbackQueryHandler(
+                    callback_seleccionar_empresa_plantilla, pattern="^emp_pre"
+                ),
+            ],
             ESPERANDO_PLANTILLA: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_plantilla)
             ],
             CONFIRMANDO_PLANTILLA: [
                 CallbackQueryHandler(confirmar_plantilla, pattern="^plantilla_")
-            ],
-            CREANDO_EMPRESA_PLANTILLA: [
-                CallbackQueryHandler(
-                    callback_empresa_plantilla, pattern="^emp_plantilla_"
-                )
             ],
         },
         fallbacks=[CommandHandler("cancelar", cancelar)],
