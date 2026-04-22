@@ -8,11 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- ...
+- Company pre-selection in template mode — before filling in the template, the user searches for and selects the company to assign to all contacts in the batch.
+- Option to create a new company directly from the search result if no match is found, both in guided mode and template mode.
 
 ### Changed
 
-- ...
+- Project modularized into separate files: `main.py`, `config.py`, `odoo_client.py`, `helpers.py`, `handlers/comandos.py`, and `handlers/conversacion.py`.
 
 ### Deprecated
 
@@ -24,7 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-- ...
+- `OdooClient.crear_empresa` now checks for an existing company with the exact same name before creating a new one, preventing duplicate entries in Odoo.
 
 ### Security
 
