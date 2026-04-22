@@ -92,7 +92,7 @@ This project is closely linked to another project; before running the Telegram b
 Once the Docker containers from the [Odoo](https://github.com/MetaChannelCorp/Odoo) repository are up and running, you can start the bot with the following command:
 
 ```shell
-python3 bot.py
+python3 bot/main.py
 ```
 
 ## Resources
